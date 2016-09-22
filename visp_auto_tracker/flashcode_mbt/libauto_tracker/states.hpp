@@ -254,6 +254,7 @@ namespace tracking{
   public:
     vpHomogeneousMatrix cMo;
     vpMatrix covariance;
+    std::vector<vpPoint> points3D_outer;
 
     ~TrackModel(){
       delete plot_;
@@ -264,6 +265,7 @@ namespace tracking{
     template <class Fsm>
     void on_entry(finished const& evt, Fsm& fsm){
       fsm.get_mbt().getPose(cMo);
+      points3D_outer = fsm.get_points3D_outer();
       covariance = fsm.get_mbt().getCovarianceMatrix();
     }
 
@@ -282,6 +284,7 @@ namespace tracking{
     void on_exit(Event const& evt, Fsm& fsm)
     {
       fsm.get_mbt().getPose(cMo);
+      points3D_outer = fsm.get_points3D_outer();
       covariance = fsm.get_mbt().getCovarianceMatrix();
       if(fsm.get_flush_display()){
         vpDisplay::display(evt.I);

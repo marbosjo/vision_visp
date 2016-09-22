@@ -14,6 +14,8 @@ namespace visp_auto_tracker
   std::string code_message_topic("code_message");
   std::string init_service("init");
 
-  std::string tracker_ref_frame("/map");
+  std::string tracker_ref_frame("/camera_rgb_optical_frame");
   std::string tracker_config_file("config.cfg");
+
+  std::string marker_frame_prefix("marker_"); //TODO: this should be read from param
 }

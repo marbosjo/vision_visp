@@ -1,3 +1,6 @@
+#include "vpDetectorAlvarCode.h" // quick hack due to a stupid compilation error. if X and eigen are included, both define Success symbol (X as #define, eigen as an enum (that's the correct way) TODO: check correct position
+
+
 #include "node.h"
 #include "names.h"
 
@@ -37,6 +40,8 @@
 
 #include "std_msgs/Int8.h"
 #include "std_msgs/String.h"
+
+#include <tf/transform_broadcaster.h>
 
 namespace visp_auto_tracker{
         Node::Node() :
@@ -167,6 +172,7 @@ namespace visp_auto_tracker{
                 ros::Publisher klt_points_publisher = n_.advertise<visp_tracker::KltPoints>(klt_points_topic, queue_size_);
                 ros::Publisher status_publisher = n_.advertise<std_msgs::Int8>(status_topic, queue_size_);
                 ros::Publisher code_message_publisher = n_.advertise<std_msgs::String>(code_message_topic, queue_size_);
+                tf::TransformBroadcaster tf_broadcaster;
 
                 //wait for an image to be ready
                 waitForImage();
@@ -184,8 +190,10 @@ namespace visp_auto_tracker{
                 unsigned int iter=0;
                 geometry_msgs::PoseStamped ps;
                 geometry_msgs::PoseWithCovarianceStamped ps_cov;
-
+                tf::Transform tr;
+                
                 ros::Rate rate(30); //init 25fps publishing frequency
+                const int TRACK_SUCCESSFUL = 3; // this comes from the finite-state-machine of the visp_auto_tracker.
                 while(ros::ok()){
                   double t = vpTime::measureTimeMs();
                         boost::mutex::scoped_lock(lock_);
@@ -194,23 +202,34 @@ namespace visp_auto_tracker{
                         //When the tracker is tracking, it's in the tracking::TrackModel state
                         //Access this state and broadcast the pose
                         tracking::TrackModel& track_model = t_->get_state<tracking::TrackModel&>();
-
+ 
                         ps.pose = visp_bridge::toGeometryMsgsPose(track_model.cMo); //convert
+                        
+                        
+                        std::vector<vpPoint> points3D_outer = track_model.points3D_outer;
+						
+						tf::Quaternion orientation_towards_camera;
+                        tf::quaternionMsgToTF(ps.pose.orientation, orientation_towards_camera);
+                        tf::Quaternion quaternion_rotation;
+                        //quaternion_rotation.setRPY(M_PI, M_PI_2, 0);
+                        quaternion_rotation.setRPY(-M_PI_2, M_PI_2, 0);
+                        //quaternion_rotation.setRPY(0, 0, 0);
+                        tf::Quaternion orientation_away_from_camera;
+                        orientation_away_from_camera = orientation_towards_camera *  quaternion_rotation;
 
-                        // Publish resulting pose.
-                        if (object_pose_publisher.getNumSubscribers	() > 0)
-                        {
+                        tf::quaternionTFToMsg(orientation_away_from_camera, ps.pose.orientation);
+
+						// only publish marker poses if tracking is successful
+                        if (*(t_->current_state()) == TRACK_SUCCESSFUL) { 
+                            
+                            // set pose
                             ps.header = image_header_;
-                            ps.header.frame_id = tracker_ref_frame;
-                            object_pose_publisher.publish(ps);
-                        }
-
-                        // Publish resulting pose covariance matrix.
-                        if (object_pose_covariance_publisher.getNumSubscribers	() > 0)
-                        {
+                            ps.header.frame_id = image_header_.frame_id; // tracker_ref_frame;
+                            
+                            // set pose with covariance
                             ps_cov.pose.pose = ps.pose;
                             ps_cov.header = image_header_;
-                            ps_cov.header.frame_id = tracker_ref_frame;
+                            ps_cov.header.frame_id = image_header_.frame_id; //  tracker_ref_frame;
 
                             for (unsigned i = 0; i < track_model.covariance.getRows(); ++i)
                             {
@@ -223,7 +242,32 @@ namespace visp_auto_tracker{
                                 }
                             }
 
-                            object_pose_covariance_publisher.publish(ps_cov);
+                            // convert pose to tf
+                            tf::poseMsgToTF(ps.pose, tr);
+
+
+                            // Publish resulting pose if we have subscribers
+                            if (object_pose_publisher.getNumSubscribers	() > 0)
+                            {
+                                object_pose_publisher.publish(ps);
+                            }
+
+                            // Publish resulting pose covariance matrix if we have subscribers
+                            if (object_pose_covariance_publisher.getNumSubscribers	() > 0)
+                            {
+                                object_pose_covariance_publisher.publish(ps_cov);
+                            }
+                            
+                            // Publish to TF only if tracking is stable, i.e. the max covariance is below some threshold
+                            double cov_max_acceptable = 1e-3;
+                            double cov_max = *std::max_element(ps_cov.pose.covariance.begin(), ps_cov.pose.covariance.end()); // XXX: maybe it would be better to check the covariance directly from the model, not from the msg, but now it is easire (ie do not have to check a new api)
+                            if (cov_max < cov_max_acceptable) {
+                                std::string marker_frame = detector->getMessage( cmd_.get_code_message_index() ); //marker_frame_prefix + detector->getMessage( cmd_.get_code_message_index() );
+                                tf_broadcaster.sendTransform(tf::StampedTransform(tr, image_header_.stamp, image_header_.frame_id /* tracker_ref_frame*/, marker_frame));
+                            }
+                            else {
+                                ROS_INFO_THROTTLE(1, "Bad covariance!! %f", cov_max);
+                            }
                         }
 
                         // Publish state machine status.

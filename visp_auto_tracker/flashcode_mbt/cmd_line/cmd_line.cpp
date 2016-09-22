@@ -112,6 +112,12 @@ void CmdLine::loadConfig(std::string& config_file){
         case DMTX:
           std::cout << "Datamatrix (flashcode)";
           break;
+        case ARUCO:
+          std::cout << "Aruco";
+          break;
+        case ALVAR:
+          std::cout << "Alvar";
+          break;
       }
       std::cout << std::endl;
 
@@ -307,8 +313,12 @@ std::vector<vpPoint>& CmdLine:: get_outer_points_3D() {
 CmdLine::DETECTOR_TYPE CmdLine:: get_detector_type() const{
   if(vm_["detector-type"].as<std::string>()=="zbar")
     return CmdLine::ZBAR;
-  else
+  else if(vm_["detector-type"].as<std::string>()=="dmtx")
     return CmdLine::DMTX;
+  else if(vm_["detector-type"].as<std::string>()=="aruco")
+    return CmdLine::ARUCO;
+  else
+    return CmdLine::ALVAR;
 }
 
 CmdLine::TRACKER_TYPE CmdLine:: get_tracker_type() const{

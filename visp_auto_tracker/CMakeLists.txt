@@ -19,6 +19,11 @@ elseif(COMPILER_SUPPORTS_GNUXX11)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
 endif()
 
+# to find the aruco library 3.0
+# set(CMAKE_MODULE_PATH /usr/local/lib/cmake)
+
+# set(CMAKE_BUILD_TYPE "Debug")
+
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   message_filters
@@ -28,18 +33,26 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   visp_bridge
   visp_tracker
+  ar_track_alvar
+  cmake_modules
 )
 # ViSP cannot be found by Catkin.
 # see https://github.com/ros/catkin/issues/606
 find_package(VISP)
+find_package(Eigen REQUIRED)
 
 find_package(Boost REQUIRED
   COMPONENTS filesystem system signals regex date_time program_options thread)
 
+#find_package(aruco REQUIRED)
+
 include_directories(
+  ${catkin_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS}
   ${VISP_INCLUDE_DIRS}
-  ${catkin_INCLUDE_DIRS}
+#  ${aruco_INCLUDE_DIRS}
+  ${Eigen_INCLUDE_DIRS}
+  ${ar_track_alvar_INCLUDE_DIRS}
 )
 
 catkin_package(
@@ -127,6 +140,8 @@ add_executable(visp_auto_tracker
   src/names.h
   src/node.cpp
   src/node.h
+#  src/vpDetectorArucoCode.cpp
+  src/vpDetectorAlvarCode.cpp
   )
 
 add_dependencies(visp_auto_tracker visp_auto_tracker_bag)
@@ -161,6 +176,7 @@ else()
     ${resource_retriever_LIBRARIES}
     ${catkin_LIBRARIES}
     ${Boost_LIBRARIES})
+    #${aruco_LIBS})
 
   install(
     TARGETS

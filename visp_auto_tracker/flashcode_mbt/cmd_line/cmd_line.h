@@ -47,7 +47,7 @@ class CmdLine{
   void common();
  public:
   enum DETECTOR_TYPE{
-    DMTX, ZBAR
+    DMTX, ZBAR, ARUCO, ALVAR
   };
   enum TRACKER_TYPE{
     KLT, MBT, KLT_MBT
